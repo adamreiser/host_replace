@@ -7,7 +7,7 @@ This module provides a command-line interface and an API to replace hostnames in
 
 CLI:
 
-usage: hostreplace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
+usage: host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
 
 Replace hostnames in the input file based on a provided host mapping.
 

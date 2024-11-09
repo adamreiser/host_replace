@@ -5,7 +5,7 @@ Key points:
 - Encoding preservation: Encoded hostnames are correctly transformed.
 - Selective replacement: Only exact hostname matches are replaced, avoiding partial or unintended substitutions.
 
-Demonstration with verbose output: `hostreplace -m mappings.json sample.txt -v`
+Demonstration with verbose output: `host-replace -m mappings.json sample.txt -v`
 
 ---
 

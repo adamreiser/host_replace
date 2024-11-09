@@ -23,7 +23,7 @@ pip install host-replace
 ### CLI
 
 ```
-usage: hostreplace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
+usage: host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
 
 Replace hostnames and domains based on a provided mapping.
 
