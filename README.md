@@ -15,7 +15,7 @@ See `sample.txt` for detailed examples.
 ## Installation
 
 ```bash
-pip install host_replace
+pip install hostreplace
 ```
 
 ## Usage
@@ -23,7 +23,7 @@ pip install host_replace
 ### CLI
 
 ```
-usage: host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
+usage: hostreplace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
 
 Replace hostnames and domains based on a provided mapping.
 
