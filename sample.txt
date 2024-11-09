@@ -1,0 +1,78 @@
+This document demonstrates how hostnames are transformed using the replacement mappings defined in the module. Each example shows the original content and the transformed content after applying the replacements from the example file `mappings.json`.
+
+Key points:
+
+- Encoding preservation: Encoded hostnames are correctly transformed.
+- Selective replacement: Only exact hostname matches are replaced, avoiding partial or unintended substitutions.
+
+Demonstration with verbose output: `host-replace -m mappings.json sample.txt -v`
+
+---
+
+1. Text
+
+Original Text:
+Visit our site at web.example.com. Or read about arachnids at spiderweb.example.com.
+
+Transformed Text:
+Visit our site at www.example.com. Or read about arachnids at spiderweb.example.com.
+
+---
+
+2. URLs
+
+Original:
+https://web.example.com/path/to/resource?query=param
+
+Transformed:
+https://www.example.com/path/to/resource?query=param
+
+---
+
+3. HTML
+
+Original:
+<a href="https&#x3a;&#x2f;&#x2f;boards&#x2e;example&#x2e;com&#x2f;thread&#x2f;123">Discussion Board</a>
+
+Transformed:
+<a href="https&#58;&#47;&#47;forums&#46;en&#46;us&#46;example&#46;com&#47;thread&#47;123">Discussion Board</a>
+
+---
+
+4. Encoded URLs
+
+Original:
+Redirecting to https%3A%2F%2Fen.us.wiki.example.com%2Fwelcome
+
+Transformed:
+Redirecting to https%3A%2F%2Fwiki.example.com%2Fwelcome
+
+---
+
+6. URL with a hostname fully encoded as a query parameter
+
+Original:
+https://web-1a.example.com/redirect?q=%65%6e%2e%75%73%2e%77%69%6b%69%2e%65%78%61%6d%70%6c%65%2e%63%6f%6d
+
+Transformed:
+https://www-1a.example.com/redirect?q=%77%69%6b%69%2e%65%78%61%6d%70%6c%65%2e%63%6f%6d
+
+---
+
+7. HTML attribute with encoded URL
+
+Original:
+<meta http-equiv="refresh" content="0; url=https%3A%2F%2Fweb.example.com%2Fhome">
+
+Transformed:
+<meta http-equiv="refresh" content="0; url=https%3A%2F%2Fwww.example.com%2Fhome">
+
+---
+
+9. Domains and hostnames only change if mapped
+
+Original:
+Our domain is still example.com and you can still access our archived wiki at archive.en.us.wiki.example.com.
+
+Transformed:
+Our domain is still example.com and you can still access our archived wiki at archive.en.us.wiki.example.com.

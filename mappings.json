@@ -1,0 +1,9 @@
+{
+    "web.example.com": "www.example.com",
+    "web-1a.example.com": "www-1a.example.com",
+    "boards.example.com": "forums.en.us.example.com",
+    "en.us.wiki.example.com": "wiki.example.com",
+    "us.example.com": "us-east-1.example.net",
+    "example.net": "example.org",
+    "images.example.com": "cdn.example.org"
+}

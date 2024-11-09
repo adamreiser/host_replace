@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "host_replace"
+version = "0.1.0"
+description = "Replace host and domain names in text under various encoding schemes."
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "MIT" }
+authors = [
+    { name = "Adam Reiser", email = "reiser@defensivecomputing.io" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "regex",
+    "idna"
+]
+
+[project.scripts]
+host-replace = "host_replace:main"
+
+[project.urls]
+"Homepage" = "https://github.com/adamreiser/host_replace"
+"Bug Tracker" = "https://github.com/adamreiser/host_replace/issues"
