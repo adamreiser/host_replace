@@ -36,6 +36,8 @@ import json
 import idna
 import regex
 
+__all__ = ["HostnameReplacer", "main", "encoding_functions", "HYPHEN", "DOT"]
+
 class HostnameReplacer:
     """A class for performing host and domain replacements on a str or byte array.
 
@@ -69,10 +71,14 @@ class HostnameReplacer:
                 e.args = (f"{e.args[0]} ({hostname})",)
                 raise e
 
-    def compute_replacements(self):
+    def compute_replacements(self, host_map: Union[Dict[str,str], None] = None):
         """Populates self.replacements_table with encoded mappings and creates
         self.hostname_regex and self.hostname_regex_binary, allowing
         self.apply_replacements to be used."""
+
+        if host_map:
+            self.validate_host_map(host_map)
+            self.host_map = host_map
 
         for original, replacement in self.host_map.items():
             for encoding_name, encoding_function in encoding_functions.items():
@@ -100,13 +106,13 @@ class HostnameReplacer:
         """
 
         if isinstance(text, str):
-            text = self.hostname_regex.sub(self.replace_str, text)
+            text = self.hostname_regex.sub(self._replace_str, text)
         else:
-            text = self.hostname_regex_binary.sub(self.replace_bytes, text)
+            text = self.hostname_regex_binary.sub(self._replace_bytes, text)
 
         return text
 
-    def replace_str(self, m: regex.Match[str]) -> str:
+    def _replace_str(self, m: regex.Match[str]) -> str:
         """Returns the replacement str. If all the cased characters in the
         original str are uppercase or title case, then the replacement string
         will be as well. It does not otherwise attempt to preserve the case."""
@@ -127,7 +133,7 @@ class HostnameReplacer:
 
         return replacement_str
 
-    def replace_bytes(self, m: regex.Match[bytes]) -> bytes:
+    def _replace_bytes(self, m: regex.Match[bytes]) -> bytes:
         """Returns the replacement bytes. If all the cased characters in the
         original bytes are uppercase or title case, then the replacement bytes
         will be as well. It does not otherwise attempt to preserve the case."""

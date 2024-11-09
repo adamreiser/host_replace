@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the host_replace module"""
+"""Unit tests for the host-replace module"""
 
 import unittest
 import logging
@@ -10,7 +10,7 @@ from host_replace import HostnameReplacer, encoding_functions, HYPHEN, DOT
 #logging.basicConfig(level=logging.DEBUG)
 
 class TestHostnameReplacement(unittest.TestCase):
-    """Unit test class for host_replace.HostnameReplacer"""
+    """Unit test class for hostreplace.HostnameReplacer"""
     alphanumerics = tuple(string.ascii_letters + string.digits)
 
     hyphen = re.compile(HYPHEN, flags=re.I)

@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hostreplace"
-version = "0.1.0"
+name = "host-replace"
+version = "0.1.5"
 description = "Replace host and domain names in text under various encoding schemes."
 readme = "README.md"
 requires-python = ">=3.6"
@@ -24,8 +24,8 @@ dependencies = [
 ]
 
 [project.scripts]
-hostreplace = "hostreplace:main"
+host-replace = "host_replace:main"
 
 [project.urls]
-"Homepage" = "https://github.com/adamreiser/hostreplace"
-"Bug Tracker" = "https://github.com/adamreiser/hostreplace/issues"
+"Homepage" = "https://github.com/adamreiser/host_replace"
+"Bug Tracker" = "https://github.com/adamreiser/host_replace/issues"
