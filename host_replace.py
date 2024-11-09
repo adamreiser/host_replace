@@ -72,9 +72,8 @@ class HostnameReplacer:
                 raise e
 
     def compute_replacements(self, host_map: Union[Dict[str,str], None] = None):
-        """Populates self.replacements_table with encoded mappings and creates
-        self.hostname_regex and self.hostname_regex_binary, allowing
-        self.apply_replacements to be used."""
+        """Populates the replacements table with encoded mappings and creates
+        the regex patterns used by the apply_replacements method."""
 
         if host_map:
             self.validate_host_map(host_map)

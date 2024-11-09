@@ -15,7 +15,7 @@ See `sample.txt` for detailed examples.
 ## Installation
 
 ```bash
-pip install hostreplace
+pip install host-replace
 ```
 
 ## Usage
