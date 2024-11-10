@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
-Replace host and domain names in text using encoding-aware transformations.
 
-This module provides a command-line interface and an API to replace hostnames in text and byte arrays, handling various text-compatible encodings
-(URL, HTML entity). It accepts a JSON map file (CLI) or Python dict (API). See `mappings.json` for an example.
-
-CLI:
+This module provides a command-line interface and an API to replace hostnames in text, automatically handling various text-compatible encodings
+(URL, HTML entity).
 
 usage: host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
 
@@ -22,9 +19,10 @@ options:
                         JSON file that contains the host mapping dictionary (e.g., {"web.example.com": "www.example.net"})
   -v, --verbose         display the replacements made
 
-API:
+Or use as a module:
 
-replacer = HostnameReplacer(host_map)
+import host_replace
+replacer = host_replace.HostnameReplacer(host_map)
 output_text = replacer.apply_replacements(input_text)
 """
 
@@ -36,23 +34,33 @@ import json
 import idna
 import regex
 
-__all__ = ["HostnameReplacer", "main", "encoding_functions", "HYPHEN", "DOT"]
+__all__ = ["HostnameReplacer", "main"]
 
 class HostnameReplacer:
     """A class for performing host and domain replacements on a str or byte array.
 
-    Args:
+    Parameters:
+        host_map (Dict[str, str]): A mapping from original hostnames to replacement hostnames.
+
+    Example:
         host_map = {
             "web.example.com": "www.example.net",
             "example.org": "example.net"
         }
 
-    Usage:
         replacer = HostnameReplacer(host_map)
         output_text = replacer.apply_replacements(input_text)
     """
 
     def __init__(self, host_map: Dict[str,str]):
+        """Initializes the HostnameReplacer with a host mapping dictionary.
+
+        Args:
+            host_map (Dict[str, str]): The host mapping dictionary.
+
+        Raises:
+            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+        """
         self.validate_host_map(host_map)
         self.host_map = host_map
 
@@ -63,7 +71,14 @@ class HostnameReplacer:
         self.compute_replacements()
 
     def validate_host_map(self, host_map: Dict[str,str]):
-        """Validate the provided host map entries."""
+        """Validates the provided host map entries.
+
+        Args:
+            host_map (Dict[str, str]): The host mapping dictionary to validate.
+
+        Raises:
+            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+        """
         for hostname in list(host_map.keys()) + list(host_map.values()):
             try:
                 idna.decode(hostname)
@@ -73,7 +88,14 @@ class HostnameReplacer:
 
     def compute_replacements(self, host_map: Union[Dict[str,str], None] = None):
         """Populates the replacements table with encoded mappings and creates
-        the regex patterns used by the apply_replacements method."""
+        the regex patterns used by the apply_replacements method.
+
+        Args:
+            host_map (Dict[str, str], optional): An optional host mapping dictionary to replace the existing mapping.
+
+        Raises:
+            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+        """
 
         if host_map:
             self.validate_host_map(host_map)
@@ -95,13 +117,13 @@ class HostnameReplacer:
         self.hostname_regex_binary = regex.compile(pattern_str.encode("utf-8"), flags=regex.I | regex.M | regex.X)
 
     def apply_replacements(self, text: Union[str,bytes]) -> Union[str,bytes]:
-        """Applies the regex replacements table to the input str or byte array.
+        """Applies the hostname replacements to the input text.
 
         Args:
-            text: The input text (str or bytes) to process.
+            text (Union[str, bytes]): The input text (str or bytes) to process.
 
         Returns:
-            The text after all replacements have been applied.
+            Union[str, bytes]: The text after all replacements have been applied.
         """
 
         if isinstance(text, str):
@@ -112,9 +134,14 @@ class HostnameReplacer:
         return text
 
     def _replace_str(self, m: regex.Match[str]) -> str:
-        """Returns the replacement str. If all the cased characters in the
-        original str are uppercase or title case, then the replacement string
-        will be as well. It does not otherwise attempt to preserve the case."""
+        """Returns the replacement string, preserving upper or title case if present in the original.
+
+        Args:
+            m (regex.Match[str]): The regex match object.
+
+        Returns:
+            str: The replacement string.
+        """
 
         original_str = m.group()
         replacement_str = self.replacements_table.get(original_str.lower(), original_str)
@@ -133,9 +160,14 @@ class HostnameReplacer:
         return replacement_str
 
     def _replace_bytes(self, m: regex.Match[bytes]) -> bytes:
-        """Returns the replacement bytes. If all the cased characters in the
-        original bytes are uppercase or title case, then the replacement bytes
-        will be as well. It does not otherwise attempt to preserve the case."""
+        """Returns the replacement bytes, preserving upper or title case if present in the original.
+
+        Args:
+            m (regex.Match[bytes]): The regex match object.
+
+        Returns:
+            bytes: The replacement bytes.
+        """
 
         original_str = m.group().decode("utf-8", errors="ignore")
         replacement_str = self.replacements_table.get(original_str.lower(), original_str)
@@ -153,7 +185,7 @@ class HostnameReplacer:
 
         return replacement_str.encode("utf-8")
 
-
+# Text encoding function definitions
 encoding_functions = {
     # No encoding
     'plain': lambda s: s,
@@ -174,6 +206,7 @@ encoding_functions = {
     'url_all': lambda s: ''.join(f'%{ord(c):02x}' for c in s)
 }
 
+# Regular expression patterns
 ALPHANUMERIC_HEX_CODES = "(?:4[1-9a-f]|5[0-9a]|6[1-9a-f]|7[0-9a]|3[0-9])"
 ALPHANUMERIC_PLUS_DOT_HEX_CODES = f"(?:2e|{ALPHANUMERIC_HEX_CODES})"
 
@@ -205,6 +238,7 @@ ANY_ALPHANUMERIC = f"""
 DOT = r"(?:\.|%2e|&\#x2e;|&\#46;)"
 HYPHEN = r"(?:-|%2d|&\#x2d;|&\#45;)"
 
+# The LEFT_SIDE and RIGHT_SIDE patterns ensure that we match whole hostnames and avoid partial matches.
 LEFT_SIDE = rf"""
 # Look for any of...
 (?<=
@@ -224,7 +258,7 @@ LEFT_SIDE = rf"""
             |
                 (?:&\#{ALPHANUMERIC_PLUS_DOT_DECIMAL_CODES})
             )
-        ;                                                               # ...a semicolon when not preceded by HTML-encoded alphanumeric or dot
+        ;                                                               # ...a semicolon not preceded by HTML-encoded alphanumeric or dot
         )
     ){DOT}?                                                         # optional dot after any of the above
 )
@@ -293,7 +327,7 @@ def main():
     output_text = replacer.apply_replacements(input_text)
 
     if args.output:
-        with open(args.output, mode="wb", encoding=None) as outfile:
+        with open(args.output, mode="wb") as outfile:
             outfile.write(output_text)
     else:
         sys.stdout.buffer.write(output_text)
