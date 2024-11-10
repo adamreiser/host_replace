@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""
+"""Replace hostnames in the input file based on a provided host mapping.
 
-This module provides a command-line interface and an API to replace hostnames in text, automatically handling various text-compatible encodings
-(URL, HTML entity).
+This module provides a command-line tool and an API to replace hostnames
+in text, automatically handling various text-compatible encodings (URL, HTML
+entity).
 
-usage: host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
+Command-line:
+
+host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
 
 Replace hostnames in the input file based on a provided host mapping.
 
@@ -19,7 +22,7 @@ options:
                         JSON file that contains the host mapping dictionary (e.g., {"web.example.com": "www.example.net"})
   -v, --verbose         display the replacements made
 
-Or use as a module:
+API:
 
 import host_replace
 replacer = host_replace.HostnameReplacer(host_map)
@@ -37,10 +40,11 @@ import regex
 __all__ = ["HostnameReplacer", "main"]
 
 class HostnameReplacer:
-    """A class for performing host and domain replacements on a str or byte array.
+    """
+    A class for performing host and domain replacements on a str or byte array.
 
     Parameters:
-        host_map (Dict[str, str]): A mapping from original hostnames to replacement hostnames.
+        host_map: The host mapping dictionary.
 
     Example:
         host_map = {
@@ -53,10 +57,11 @@ class HostnameReplacer:
     """
 
     def __init__(self, host_map: Dict[str,str]):
-        """Initializes the HostnameReplacer with a host mapping dictionary.
+        """
+        Initializes the HostnameReplacer with a host mapping dictionary.
 
         Args:
-            host_map (Dict[str, str]): The host mapping dictionary.
+            host_map: The host mapping dictionary.
 
         Raises:
             idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
@@ -71,10 +76,11 @@ class HostnameReplacer:
         self.compute_replacements()
 
     def validate_host_map(self, host_map: Dict[str,str]):
-        """Validates the provided host map entries.
+        """
+        Validates the provided host map entries.
 
         Args:
-            host_map (Dict[str, str]): The host mapping dictionary to validate.
+            host_map: The host mapping dictionary to validate.
 
         Raises:
             idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
@@ -87,7 +93,8 @@ class HostnameReplacer:
                 raise e
 
     def compute_replacements(self, host_map: Union[Dict[str,str], None] = None):
-        """Populates the replacements table with encoded mappings and creates
+        """
+        Populates the replacements table with encoded mappings and creates
         the regex patterns used by the apply_replacements method.
 
         Args:
@@ -107,7 +114,7 @@ class HostnameReplacer:
                 encoded_replacement = encoding_function(replacement)
 
                 # Avoid introducing encoded characters in a replacement if the original doesn't have any
-                if encoded_original != original or encoding_name == 'plain':
+                if encoded_original != original or encoding_name == "plain":
                     self.replacements_table[encoded_original] = encoded_replacement
 
         search_str = "(" + "|".join([regex.escape(search) for search in self.replacements_table]) + ")"
@@ -117,13 +124,14 @@ class HostnameReplacer:
         self.hostname_regex_binary = regex.compile(pattern_str.encode("utf-8"), flags=regex.I | regex.M | regex.X)
 
     def apply_replacements(self, text: Union[str,bytes]) -> Union[str,bytes]:
-        """Applies the hostname replacements to the input text.
+        """
+        Applies the hostname replacements to the input text.
 
         Args:
-            text (Union[str, bytes]): The input text (str or bytes) to process.
+            text: The input text (str or bytes) to process.
 
         Returns:
-            Union[str, bytes]: The text after all replacements have been applied.
+            The text after all replacements have been applied.
         """
 
         if isinstance(text, str):
@@ -134,13 +142,14 @@ class HostnameReplacer:
         return text
 
     def _replace_str(self, m: regex.Match[str]) -> str:
-        """Returns the replacement string, preserving upper or title case if present in the original.
+        """
+        Returns the replacement string, preserving upper or title case if present in the original.
 
         Args:
-            m (regex.Match[str]): The regex match object.
+            m: The regex match object.
 
         Returns:
-            str: The replacement string.
+            The replacement string.
         """
 
         original_str = m.group()
@@ -163,10 +172,10 @@ class HostnameReplacer:
         """Returns the replacement bytes, preserving upper or title case if present in the original.
 
         Args:
-            m (regex.Match[bytes]): The regex match object.
+            m: The regex match object.
 
         Returns:
-            bytes: The replacement bytes.
+            The replacement bytes.
         """
 
         original_str = m.group().decode("utf-8", errors="ignore")
@@ -185,25 +194,26 @@ class HostnameReplacer:
 
         return replacement_str.encode("utf-8")
 
+
 # Text encoding function definitions
 encoding_functions = {
     # No encoding
-    'plain': lambda s: s,
+    "plain": lambda s: s,
 
     # Encode all non-alphanumeric characters except hyphens
-    'html_hex': lambda s: ''.join(f'&#x{ord(c):x};' if not c.isalnum() or c == '-' else c for c in s),
-    'html_numeric': lambda s: ''.join(f'&#{ord(c)};' if not c.isalnum() or c == '-' else c for c in s),
-    'url': lambda s: ''.join(f'%{ord(c):02x}' if not c.isalnum() or c == '-' else c for c in s),
+    "html_hex": lambda s: "".join(f"&#x{ord(c):x};" if not c.isalnum() or c == "-" else c for c in s),
+    "html_numeric": lambda s: "".join(f"&#{ord(c)};" if not c.isalnum() or c == "-" else c for c in s),
+    "url": lambda s: "".join(f"%{ord(c):02x}" if not c.isalnum() or c == "-" else c for c in s),
 
     # Encode all non-alphanumeric characters, including hyphens
-    'html_hex_not_alphanum': lambda s: ''.join(f'&#x{ord(c):x};' if not c.isalnum() else c for c in s),
-    'html_numeric_not_alphanum': lambda s: ''.join(f'&#{ord(c)};' if not c.isalnum() else c for c in s),
-    'url_not_alphanum': lambda s: ''.join(f'%{ord(c):02x}' if not c.isalnum() else c for c in s),
+    "html_hex_not_alphanum": lambda s: "".join(f"&#x{ord(c):x};" if not c.isalnum() else c for c in s),
+    "html_numeric_not_alphanum": lambda s: "".join(f"&#{ord(c)};" if not c.isalnum() else c for c in s),
+    "url_not_alphanum": lambda s: "".join(f"%{ord(c):02x}" if not c.isalnum() else c for c in s),
 
     # Encode all characters
-    'html_hex_all': lambda s: ''.join(f'&#x{ord(c):x};' for c in s),
-    'html_numeric_all': lambda s: ''.join(f'&#{ord(c)};' for c in s),
-    'url_all': lambda s: ''.join(f'%{ord(c):02x}' for c in s)
+    "html_hex_all": lambda s: "".join(f"&#x{ord(c):x};" for c in s),
+    "html_numeric_all": lambda s: "".join(f"&#{ord(c)};" for c in s),
+    "url_all": lambda s: "".join(f"%{ord(c):02x}" for c in s)
 }
 
 # Regular expression patterns
@@ -281,7 +291,7 @@ def main():
     parser = argparse.ArgumentParser(description="Replace hostnames and domains based on a provided mapping.")
 
     parser.add_argument(
-        "input", type=argparse.FileType('rb'), nargs='?', default=sys.stdin.buffer,
+        "input", type=argparse.FileType("rb"), nargs="?", default=sys.stdin.buffer,
         help="input file to read from. If not provided, read from stdin"
     )
 
@@ -304,7 +314,7 @@ def main():
 
     logging.basicConfig(level=
         logging.INFO if args.verbose else logging.WARNING,
-        format='%(levelname)s: %(message)s'
+        format="%(levelname)s: %(message)s"
     )
 
     try:
@@ -313,8 +323,8 @@ def main():
     except IOError as e:
         logging.error("Cannot open host map file: %s", e)
         sys.exit(1)
-    except json.decoder.JSONDecodeError as e:
-        logging.error("%s is not a valid JSON file: %s", args.mapping, e)
+    except (json.decoder.JSONDecodeError, UnicodeDecodeError) as e:
+        logging.error("%s is not a valid UTF-8 JSON file: %s", args.mapping, e)
         sys.exit(1)
 
     try:
@@ -332,5 +342,5 @@ def main():
     else:
         sys.stdout.buffer.write(output_text)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

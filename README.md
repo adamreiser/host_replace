@@ -86,8 +86,8 @@ input_text = "Visit us at https://web.example.com or leave a comment at https://
 # Apply replacements
 output_text = replacer.apply_replacements(input_text)
 
-print(output_text)
 # Output: Visit us at https://www.example.com or leave a comment at https://forums.example.net.
+print(output_text)
 ```
 
 ## Limitations
@@ -102,8 +102,6 @@ print(output_text)
 
 - Hostnames starting with hex codes can be ambiguous when preceded by %. For instance, `%00example.com` could be interpreted as `example.com` or `00example.com`.
 
-- Hostnames beginning with a hex code are ambiguous when preceded by "%". For example, should "%00example.com" match "example.com" or "00example.com"?
-
-- Support for Internationalized Domain Names (IDNs) is not thoroughly tested and may not function as expected.
+- Support for Internationalized Domain Names (IDNs) has not been thoroughly tested and may not function as expected.
 
 - The module does not currently support IPv6 address replacements.
