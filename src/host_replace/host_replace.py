@@ -1,43 +1,10 @@
-#!/usr/bin/env python3
-"""Replace hostnames in the input file based on a provided host mapping.
-
-This module provides a command-line tool and an API to replace hostnames
-in text, automatically handling various text-compatible encodings (URL, HTML
-entity).
-
-Command-line:
-
-host-replace [-h] [-o OUTPUT] -m MAPPING [-v] [input]
-
-Replace hostnames in the input file based on a provided host mapping.
-
-positional arguments:
-  input                 input file to read from. If not provided, read from stdin
-
-options:
-  -h, --help            show this help message and exit
-  -o OUTPUT, --output OUTPUT
-                        output file to write the replaced content. If not provided, write to stdout
-  -m MAPPING, --mapping MAPPING
-                        JSON file that contains the host mapping dictionary (e.g., {"web.example.com": "www.example.net"})
-  -v, --verbose         display the replacements made
-
-API:
-
-import host_replace
-replacer = host_replace.HostnameReplacer(host_map)
-output_text = replacer.apply_replacements(input_text)
-"""
-
+"""Host Replace module"""
 from typing import Dict, Union
-import sys
 import logging
-import argparse
-import json
 import idna
 import regex
 
-__all__ = ["HostnameReplacer", "main"]
+__all__ = ["HostnameReplacer"]
 
 class HostnameReplacer:
     """
@@ -75,7 +42,7 @@ class HostnameReplacer:
 
         self.compute_replacements()
 
-    def validate_host_map(self, host_map: Dict[str,str]):
+    def validate_host_map(self, host_map: Dict[str,str]) -> None:
         """
         Validates the provided host map entries.
 
@@ -92,13 +59,13 @@ class HostnameReplacer:
                 e.args = (f"{e.args[0]} ({hostname})",)
                 raise e
 
-    def compute_replacements(self, host_map: Union[Dict[str,str], None] = None):
+    def compute_replacements(self, host_map: Union[Dict[str,str], None] = None) -> None:
         """
         Populates the replacements table with encoded mappings and creates
         the regex patterns used by the apply_replacements method.
 
         Args:
-            host_map (Dict[str, str], optional): An optional host mapping dictionary to replace the existing mapping.
+            host_map: An optional host mapping dictionary to replace the existing mapping.
 
         Raises:
             idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
@@ -178,7 +145,7 @@ class HostnameReplacer:
             The replacement bytes.
         """
 
-        original_str = m.group().decode("utf-8", errors="ignore")
+        original_str = m.group().decode("utf-8", errors="replace")
         replacement_str = self.replacements_table.get(original_str.lower(), original_str)
 
         if replacement_str == original_str:
@@ -194,26 +161,59 @@ class HostnameReplacer:
 
         return replacement_str.encode("utf-8")
 
+def encoding_plain(s: str) -> str:
+    """Return the string without modification."""
+    return s
+
+def encoding_html_hex(s: str) -> str:
+    """Return string with all non-alphanumeric characters except hyphens HTML entity encoded using hex notation."""
+    return "".join(f"&#x{ord(c):02x};" if not (c.isalnum() or c == "-") else c for c in s)
+
+def encoding_html_numeric(s: str) -> str:
+    """Return string with all non-alphanumeric characters except hyphens HTML entity encoded using decimal notation."""
+    return "".join(f"&#{ord(c)};" if not (c.isalnum() or c == "-") else c for c in s)
+
+def encoding_url(s: str) -> str:
+    """Return string with all non-alphanumeric characters except hyphens URL encoded."""
+    return "".join(f"%{ord(c):02x}" if not (c.isalnum() or c == "-") else c for c in s)
+
+def encoding_html_hex_not_alphanum(s: str) -> str:
+    """Return string with all non-alphanumeric characters including hyphens HTML entity encoded using hex notation."""
+    return "".join(f"&#x{ord(c):02x};" if not c.isalnum() else c for c in s)
+
+def encoding_html_numeric_not_alphanum(s: str) -> str:
+    """Return string with all non-alphanumeric characters including hyphens HTML entity encoded using decimal notation."""
+    return "".join(f"&#{ord(c)};" if not c.isalnum() else c for c in s)
+
+def encoding_url_not_alphanum(s: str) -> str:
+    """Return string with all non-alphanumeric characters including hyphens URL encoded."""
+    return "".join(f"%{ord(c):02x}" if not c.isalnum() else c for c in s)
+
+def encoding_html_hex_all(s: str) -> str:
+    """Return string with all characters HTML entity encoded using hex notation."""
+    return "".join(f"&#x{ord(c):02x};" for c in s)
+
+def encoding_html_numeric_all(s: str) -> str:
+    """Return string with all characters HTML entity encoded using decimal notation."""
+    return "".join(f"&#{ord(c)};" for c in s)
+
+def encoding_url_all(s: str) -> str:
+    """Return string with all characters URL encoded."""
+    return "".join(f"%{ord(c):02x}" for c in s)
 
 # Text encoding function definitions
 encoding_functions = {
     # No encoding
-    "plain": lambda s: s,
-
-    # Encode all non-alphanumeric characters except hyphens
-    "html_hex": lambda s: "".join(f"&#x{ord(c):x};" if not c.isalnum() or c == "-" else c for c in s),
-    "html_numeric": lambda s: "".join(f"&#{ord(c)};" if not c.isalnum() or c == "-" else c for c in s),
-    "url": lambda s: "".join(f"%{ord(c):02x}" if not c.isalnum() or c == "-" else c for c in s),
-
-    # Encode all non-alphanumeric characters, including hyphens
-    "html_hex_not_alphanum": lambda s: "".join(f"&#x{ord(c):x};" if not c.isalnum() else c for c in s),
-    "html_numeric_not_alphanum": lambda s: "".join(f"&#{ord(c)};" if not c.isalnum() else c for c in s),
-    "url_not_alphanum": lambda s: "".join(f"%{ord(c):02x}" if not c.isalnum() else c for c in s),
-
-    # Encode all characters
-    "html_hex_all": lambda s: "".join(f"&#x{ord(c):x};" for c in s),
-    "html_numeric_all": lambda s: "".join(f"&#{ord(c)};" for c in s),
-    "url_all": lambda s: "".join(f"%{ord(c):02x}" for c in s)
+    "plain": encoding_plain,
+    "html_hex": encoding_html_hex,
+    "html_numeric": encoding_html_numeric,
+    "url": encoding_url,
+    "html_hex_not_alphanum": encoding_html_hex_not_alphanum,
+    "html_numeric_not_alphanum": encoding_html_numeric_not_alphanum,
+    "url_not_alphanum": encoding_url_not_alphanum,
+    "html_hex_all": encoding_html_hex_all,
+    "html_numeric_all": encoding_html_numeric_all,
+    "url_all": encoding_url_all
 }
 
 # Regular expression patterns
@@ -281,66 +281,3 @@ RIGHT_SIDE = rf"""
         {ANY_ALPHANUMERIC}
 )
 """
-
-def main():
-    """Entry point for command-line invocation.
-
-    Parses command-line arguments and performs hostname replacements in the
-    specified input file, writing the results to the output file or stdout.
-    """
-    parser = argparse.ArgumentParser(description="Replace hostnames and domains based on a provided mapping.")
-
-    parser.add_argument(
-        "input", type=argparse.FileType("rb"), nargs="?", default=sys.stdin.buffer,
-        help="input file to read from. If not provided, read from stdin"
-    )
-
-    parser.add_argument(
-        "-o", "--output", type=str, default=None,
-        help="output file to write the replaced content. If not provided, write to stdout"
-    )
-
-    parser.add_argument(
-        "-m", "--mapping", type=str, required=True,
-        help='JSON file that contains the host mapping dictionary (e.g., {"web.example.com": "www.example.net"})'
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="store_true",
-        help="display the replacements made"
-    )
-
-    args = parser.parse_args()
-
-    logging.basicConfig(level=
-        logging.INFO if args.verbose else logging.WARNING,
-        format="%(levelname)s: %(message)s"
-    )
-
-    try:
-        with open(args.mapping, "r", encoding="utf-8") as mapping_file:
-            host_map = json.load(mapping_file)
-    except IOError as e:
-        logging.error("Cannot open host map file: %s", e)
-        sys.exit(1)
-    except (json.decoder.JSONDecodeError, UnicodeDecodeError) as e:
-        logging.error("%s is not a valid UTF-8 JSON file: %s", args.mapping, e)
-        sys.exit(1)
-
-    try:
-        replacer = HostnameReplacer(host_map)
-    except ValueError as e:
-        logging.error("%s is not a valid host map: %s", args.mapping, e)
-        sys.exit(1)
-
-    input_text = args.input.read()
-    output_text = replacer.apply_replacements(input_text)
-
-    if args.output:
-        with open(args.output, mode="wb") as outfile:
-            outfile.write(output_text)
-    else:
-        sys.stdout.buffer.write(output_text)
-
-if __name__ == "__main__":
-    main()

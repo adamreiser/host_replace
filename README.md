@@ -18,10 +18,8 @@ Install from source:
 ```
 git clone https://github.com/adamreiser/host_replace
 cd host-replace
-pip install -e .
+pip install .
 ```
-
-You can also simply run `host_replace.py` if you have the dependencies in `requirements.txt` installed.
 
 ## Usage
 

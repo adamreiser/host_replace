@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "host-replace"
-version = "0.1.9"
+version = "0.1.10"
 description = "Replace host and domain names in text under various encoding schemes."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -14,6 +14,7 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.9",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -32,8 +33,14 @@ dependencies = [
 ]
 
 [project.scripts]
-host-replace = "host_replace:main"
+host-replace = "host_replace.cli:main"
 
 [project.urls]
 "Homepage" = "https://github.com/adamreiser/host_replace"
 "Bug Tracker" = "https://github.com/adamreiser/host_replace/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+py-modules = ["host_replace"]
