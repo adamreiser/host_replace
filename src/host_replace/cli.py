@@ -7,8 +7,8 @@ from .host_replace import HostnameReplacer
 
 def main() -> None:
     """
-    Parses command-line arguments and performs hostname replacements in the
-    specified input file, writing the results to the output file or stdout.
+    Parses command-line arguments and performs hostname replacements on stdin
+    or the input file, writing the results to stdout or the output file.
     """
     parser = argparse.ArgumentParser(description="Replace hostnames and domains based on a provided mapping.")
 
@@ -42,11 +42,14 @@ def main() -> None:
     try:
         with open(args.mapping, "r", encoding="utf-8") as mapping_file:
             host_map = json.load(mapping_file)
+            if not isinstance(host_map, dict):
+                raise ValueError("Not a dictionary")
+
     except IOError as e:
         logging.error("Cannot open host map file: %s", e)
         sys.exit(1)
-    except (json.decoder.JSONDecodeError, UnicodeDecodeError) as e:
-        logging.error("%s is not a valid UTF-8 JSON file: %s", args.mapping, e)
+    except (json.decoder.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+        logging.error("%s is not a valid UTF-8 JSON dict: %s", args.mapping, e)
         sys.exit(1)
 
     try:
@@ -67,10 +70,10 @@ def main() -> None:
         else:
             if sys.stdout.isatty():
                 try:
-                    output_text.decode("utf-8")
-                    sys.stdout.buffer.write(output_text)
+                    sys.stdout.write(output_text.decode("utf-8"))
                 except UnicodeDecodeError:
-                    logging.warning("Output contains binary data that may corrupt your terminal.")
+                    logging.error("Output contains binary data that may corrupt your terminal")
+                    sys.exit(1)
             else:
                 sys.stdout.buffer.write(output_text)
 

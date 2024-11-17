@@ -1,6 +1,7 @@
 """Host Replace module"""
 from typing import Dict, Union
 import logging
+import ipaddress
 import idna
 import regex
 
@@ -50,14 +51,19 @@ class HostnameReplacer:
             host_map: The host mapping dictionary to validate.
 
         Raises:
-            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+            ValueError: If any entry is neither a valid IDN nor IP address.
         """
-        for hostname in list(host_map.keys()) + list(host_map.values()):
+
+        for hostname in set(host_map.keys()).union(host_map.values()):
             try:
+                if not isinstance(hostname, str):
+                    raise ValueError(f"{hostname} is not a str")
                 idna.decode(hostname)
-            except idna.core.IDNAError as e:
-                e.args = (f"{e.args[0]} ({hostname})",)
-                raise e
+            except idna.core.IDNAError:
+                try:
+                    ipaddress.IPv6Address(hostname)
+                except ipaddress.AddressValueError as e:
+                    raise ValueError(f"{hostname} is not a valid domain name or IP address") from e
 
     def compute_replacements(self, host_map: Union[Dict[str,str], None] = None) -> None:
         """
@@ -74,6 +80,7 @@ class HostnameReplacer:
         if host_map:
             self.validate_host_map(host_map)
             self.host_map = host_map
+            self.replacements_table = {}
 
         for original, replacement in self.host_map.items():
             for encoding_name, encoding_function in encoding_functions.items():
@@ -81,13 +88,14 @@ class HostnameReplacer:
                 encoded_replacement = encoding_function(replacement)
 
                 # Avoid introducing encoded characters in a replacement if the original doesn't have any
-                if encoded_original != original or encoding_name == "plain":
+                if encoded_original != original or encoding_name == "encoding_plain":
                     self.replacements_table[encoded_original] = encoded_replacement
 
         search_str = "(" + "|".join([regex.escape(search) for search in self.replacements_table]) + ")"
         pattern_str = f"{LEFT_SIDE}{search_str}{RIGHT_SIDE}"
 
         self.hostname_regex = regex.compile(pattern_str, flags=regex.I | regex.M | regex.X)
+
         self.hostname_regex_binary = regex.compile(pattern_str.encode("utf-8"), flags=regex.I | regex.M | regex.X)
 
     def apply_replacements(self, text: Union[str,bytes]) -> Union[str,bytes]:
@@ -162,7 +170,7 @@ class HostnameReplacer:
         return replacement_str.encode("utf-8")
 
 def encoding_plain(s: str) -> str:
-    """Return the string without modification."""
+    """Return string without modification."""
     return s
 
 def encoding_html_hex(s: str) -> str:
@@ -201,20 +209,13 @@ def encoding_url_all(s: str) -> str:
     """Return string with all characters URL encoded."""
     return "".join(f"%{ord(c):02x}" for c in s)
 
-# Text encoding function definitions
-encoding_functions = {
-    # No encoding
-    "plain": encoding_plain,
-    "html_hex": encoding_html_hex,
-    "html_numeric": encoding_html_numeric,
-    "url": encoding_url,
-    "html_hex_not_alphanum": encoding_html_hex_not_alphanum,
-    "html_numeric_not_alphanum": encoding_html_numeric_not_alphanum,
-    "url_not_alphanum": encoding_url_not_alphanum,
-    "html_hex_all": encoding_html_hex_all,
-    "html_numeric_all": encoding_html_numeric_all,
-    "url_all": encoding_url_all
-}
+encoding_functions = {}
+
+for name in dir():
+    if name.startswith("encoding_"):
+        function = globals().get(name, None)
+        if callable(function):
+            encoding_functions[name] = function
 
 # Regular expression patterns
 ALPHANUMERIC_HEX_CODES = "(?:4[1-9a-f]|5[0-9a]|6[1-9a-f]|7[0-9a]|3[0-9])"

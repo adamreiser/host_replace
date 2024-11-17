@@ -35,7 +35,7 @@ Original:
 <a href="https&#x3a;&#x2f;&#x2f;boards&#x2e;example&#x2e;com&#x2f;thread&#x2f;123">Discussion Board</a>
 
 Transformed:
-<a href="https&#58;&#47;&#47;forums&#46;en&#46;us&#46;example&#46;com&#47;thread&#47;123">Discussion Board</a>
+<a href="https&#x3a;&#x2f;&#x2f;forums&#x2e;en&#x2e;us&#x2e;example&#x2e;com&#x2f;thread&#x2f;123">Discussion Board</a>
 
 ---
 

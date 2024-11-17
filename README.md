@@ -1,14 +1,14 @@
 # Host Replace
 
-A Python package for replacing host and domain names in text under common encoding schemes.
+A Python package for replacing hostnames, domains, and IP addresses in text under common encoding schemes.
 
 ## Features
 
-- Replace hostnames in text under common encodings (URL, HTML entity) while avoiding partial matches.
+- Replace hostnames and IP addresses in text under common encodings (URL, HTML entity) while avoiding partial matches.
 - Replacements maintain the same encoding as the original text.
-- Provides both a CLI interface and importable module.
-- Supports both UTF-8 string and byte inputs.
-- Supports FQDNS, second level domains, unqualified hostnames, and IPv4 addresses.
+- Provides CLI interface and importable module.
+- Supports UTF-8 string and byte inputs.
+- Supports FQDNS, second level domains, unqualified hostnames, and IPv4/IPv6 addresses.
 
 ## Installation
 
@@ -100,6 +100,4 @@ print(output_text)
 
 - Hostnames starting with hex codes can be ambiguous when preceded by %. For instance, `%00example.com` could be interpreted as `example.com` or `00example.com`.
 
-- Support for Internationalized Domain Names (IDNs) has not been thoroughly tested and may not function as expected.
-
-- The module does not currently support IPv6 address replacements.
+- Support for Internationalized Domain Names (IDNs) has not been thoroughly tested.
