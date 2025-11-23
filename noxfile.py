@@ -18,7 +18,7 @@ def lint_module(session):
 @nox.session
 def lint_tests(session):
     """Lint the unit tests."""
-    session.install("pylint")
+    session.install("pylint", "pytest")
     session.install(".")
     session.run("pylint", *session.posargs, "tests")
 
