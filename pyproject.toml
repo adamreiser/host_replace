@@ -25,6 +25,7 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
     "Environment :: Console",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Text Processing",
@@ -42,11 +43,6 @@ host-replace = "host_replace.cli:main"
 [project.urls]
 "Homepage" = "https://github.com/adamreiser/host_replace"
 "Bug Tracker" = "https://github.com/adamreiser/host_replace/issues"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["host_replace"]
-include-package-data = true
 
 [tool.mypy]
 files = "src"
