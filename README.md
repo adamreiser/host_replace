@@ -94,7 +94,7 @@ print(output_text)
 
 - Full case preservation of individual characters is not supported due to its inherent ambiguity. For example, when mapping `WWW.example.com` to `example.org`, it's unclear which if any letters should be capitalized.
 
-- Variations in encoding representation (e.g., "%2F" vs "%2f"; "&#x2f" vs "&#X2f") can lead to inconsistent outputs.
+- Variations in encoding representation (e.g., "%2F" vs "%2f"; "&#x2f" vs "&#X2f") can lead to inconsistently cased outputs.
 
 - Does not process binary data beyond exact byte sequence matching. Encodings like base64 are not supported.
 

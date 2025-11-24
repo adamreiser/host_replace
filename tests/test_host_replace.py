@@ -6,6 +6,7 @@ import logging
 import string
 import urllib.parse
 import html
+import pytest
 import host_replace
 
 
@@ -87,7 +88,7 @@ class TestHostnameReplacement(unittest.TestCase):
             "127.0.0.1": "home.example.com",
             "2001:db8::": "ipv6.example.com",
 
-            # Partial hostname contained in subsequent hostnames
+            # Partial hostname contained in replacement hostname
             "en.us.example.com": "en.us.regions.example.com",
 
             # Hex sequence that could be confused with an encoded dot when preceded by %
@@ -163,7 +164,7 @@ class TestHostnameReplacement(unittest.TestCase):
         for encoding_name, encoding_function in host_replace.encoding_functions.items():
             function_output = encoding_function(input_text)
             with self.subTest(encoding_name=encoding_name):
-                self.assertEqual(expected_outputs[encoding_name], function_output, msg=f"Encoding error: {input_text} incorrectly results in {function_output} instead of {expected_outputs[encoding_name]} under {encoding_name} encoding.")
+                assert expected_outputs[encoding_name] == function_output, f"Encoding error: {input_text} incorrectly results in {function_output} instead of {expected_outputs[encoding_name]} under {encoding_name} encoding."
 
     def test_replacements_table(self):
         """Test that the replacements table is correctly created for an
@@ -185,9 +186,15 @@ class TestHostnameReplacement(unittest.TestCase):
             "%77%65%62%2d%31%61%2e%65%78%61%6d%70%6c%65%2e%63%6f%6d": "%77%77%77%2d%31%61%2e%65%78%61%6d%70%6c%65%2e%63%6f%6d"
         }
 
-        with self.subTest(test="Mapping FQDN 'web-1a.example.com' to 'www-1a.example.com'"):
-            self.assertEqual(tmp_replacer.replacements_table, expected_replacements_table, msg=f"{host_map} failed to correctly create expected replacements table")
+        for k,v in expected_replacements_table.items():
+            with self.subTest(key=k, value=v):
+                assert tmp_replacer.replacements_table.get(k) == v
 
+        for k,v in tmp_replacer.replacements_table.items():
+            with self.subTest(key=k, value=v):
+                assert expected_replacements_table.get(k) == v
+
+        # Split this into a separate test
         host_map = {"example": "us-east-1.example.net"}
         tmp_replacer = host_replace.HostnameReplacer(host_map)
         expected_replacements_table = {
@@ -197,8 +204,9 @@ class TestHostnameReplacement(unittest.TestCase):
             "%65%78%61%6d%70%6c%65": "%75%73%2d%65%61%73%74%2d%31%2e%65%78%61%6d%70%6c%65%2e%6e%65%74"
         }
 
-        with self.subTest(test="Mapping unqualified hostname 'example' to 'us-east-1.example.net'"):
-            self.assertEqual(tmp_replacer.replacements_table, expected_replacements_table, msg=f"{host_map} failed to correctly create expected replacements table")
+        for k,v in tmp_replacer.replacements_table.items():
+            with self.subTest(key=k, value=v):
+                assert expected_replacements_table.get(k) == v
 
     def test_delimiters(self):
         """Test every replacement in the table for all encodings with
@@ -231,7 +239,7 @@ class TestHostnameReplacement(unittest.TestCase):
                         actual_output = self.replacer.apply_replacements(input_text)
 
                         with self.subTest(original=original, prefix=prefix, suffix=suffix, encoding_name=encoding_name):
-                            self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                            assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_nondelimiters(self):
         """Test every entry in the table for all encodings, with
@@ -260,7 +268,7 @@ class TestHostnameReplacement(unittest.TestCase):
                     actual_output = self.replacer.apply_replacements(input_text)
 
                     with self.subTest(original=original, suffix=suffix, encoding_name=encoding_name):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                        assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
                 for prefix in self.negative_prefixes + alphanumerics:
                     input_text = encoding_function(prefix + original)
@@ -273,7 +281,7 @@ class TestHostnameReplacement(unittest.TestCase):
                     actual_output = self.replacer.apply_replacements(input_text)
 
                     with self.subTest(original=original, prefix=prefix, encoding_name=encoding_name):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                        assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_bad_unicode_bytes(self):
         """Test that invalid UTF-8 bytes do not raise exceptions and that they act as delimiters."""
@@ -290,7 +298,7 @@ class TestHostnameReplacement(unittest.TestCase):
                     actual_output = self.replacer.apply_replacements(input_text)
 
                     with self.subTest(original=original, bad_bytes=bad_bytes, encoding_name=encoding_name, reason=reason):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} (UTF-8 with {reason}) incorrectly results in {actual_output} under encoding '{encoding_name}'.")
+                        assert actual_output == expected_output, f"{input_text} (UTF-8 with {reason}) incorrectly results in {actual_output} under encoding '{encoding_name}'."
 
     def test_bad_unicode_str(self):
         """Test that invalid UTF-8 strings do not raise exceptions and that they act as delimiters."""
@@ -306,7 +314,7 @@ class TestHostnameReplacement(unittest.TestCase):
                     actual_output = self.replacer.apply_replacements(input_text)
 
                     with self.subTest(original=original, encoding_name=encoding_name, reason=reason):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} (UTF-8 with {reason}) incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                        assert actual_output == expected_output, f"{input_text} (UTF-8 with {reason}) incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_no_undefined_subdomain_replacement(self):
         """Test whether an undefined subdomain is replaced."""
@@ -319,7 +327,7 @@ class TestHostnameReplacement(unittest.TestCase):
                 actual_output = self.replacer.apply_replacements(input_text)
 
                 with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                    self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                    assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_no_bare_domain_replacement(self):
         """Test whether a bare second level domain is replaced."""
@@ -331,7 +339,7 @@ class TestHostnameReplacement(unittest.TestCase):
             actual_output = self.replacer.apply_replacements(input_text)
 
             with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_url_with_encoded_redirect(self):
         """Test whether an unencoded hostname and an encoded hostname are both replaced correctly."""
@@ -349,7 +357,7 @@ class TestHostnameReplacement(unittest.TestCase):
                     actual_output = self.replacer.apply_replacements(input_text)
 
                     with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                        assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_no_wildcard_dots(self):
         """Test that dots in the hostname are treated as literal dots, not as wildcards."""
@@ -359,7 +367,7 @@ class TestHostnameReplacement(unittest.TestCase):
         expected_output = input_text
         actual_output = self.replacer.apply_replacements(input_text)
 
-        self.assertEqual(actual_output, expected_output, msg="The '.' character must be escaped so that it's not treated as a wildcard.")
+        assert actual_output == expected_output, "The '.' character must be escaped so that it's not treated as a wildcard."
 
     def test_case_preservation(self):
         """Test basic post-encoding case preservation under simple encodings.
@@ -384,7 +392,7 @@ class TestHostnameReplacement(unittest.TestCase):
                 actual_output = self.replacer.apply_replacements(input_text)
 
                 with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                    self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                    assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
                 # Test bytes
                 input_text = encoding_function(original).encode("utf-8").upper()
@@ -392,7 +400,7 @@ class TestHostnameReplacement(unittest.TestCase):
                 actual_output = self.replacer.apply_replacements(input_text)
 
                 with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                    self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding.")
+                    assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
     def test_no_transitive(self):
         """Test that host maps containing A-to-B and B-to-C mappings do not
@@ -424,9 +432,10 @@ class TestHostnameReplacement(unittest.TestCase):
                 expected_output = replacement
                 actual_output = transitive_replacements.apply_replacements(input_text)
                 with self.subTest(input_text=input_text):
-                    self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output}.")
+                    assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output}."
 
-    def _disabled_test_pre_encoding_case(self):
+    @pytest.mark.skip(reason="pre-encoding case preservation is not implemented")
+    def test_pre_encoding_case(self):
         """Test cosmetic and functional casing behavior. These tests fail due
         to the absence of pre-encoding case detection."""
 
@@ -448,7 +457,29 @@ class TestHostnameReplacement(unittest.TestCase):
                 else:
                     # Functional failure
                     with self.subTest(input_text=input_text, encoding_name=encoding_name):
-                        self.assertEqual(actual_output, expected_output, msg=f"{input_text} incorrectly results in {actual_output} instead of {expected_output}.")
+                        assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output}."
+
+    def test_invalid_hostnames(self):
+        """Test that exceptions are properly raised on invalid hostnames."""
+
+        invalid_host_maps = [
+            {"-test.example.com": "example.org"},
+            {"test.example.com": "-example.org"},
+            {"test.example.com": ""},
+            {"/.com": "example.org"},
+            {"127.0.-0.1": "example.org"},
+            {"2001:db8::::": "invalid-ipv6.example.com"},
+            {"..example.com": "example.org"},
+            {"example.com": "example..org"},
+            {1: "example.org"},
+            {"test.example.com": True},
+            {None: None},
+            {"\xc1\x80test.example.com": "example.org"}
+        ]
+
+        for host_map in invalid_host_maps:
+            with pytest.raises(ValueError):
+                host_replace.HostnameReplacer(host_map)
 
 if __name__ == "__main__":
     unittest.main()

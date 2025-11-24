@@ -26,15 +26,15 @@ class HostnameReplacer:
 
     def __init__(self, host_map: Dict[str,str]):
         """
-        Initializes the HostnameReplacer with a host mapping dictionary.
+        Initializes the host mapping dictionaries.
 
         Args:
             host_map: The host mapping dictionary.
 
         Raises:
-            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+            ValueError: If any entry is neither a valid domain nor IP address.
         """
-        self.validate_host_map(host_map)
+        self._validate_host_map(host_map)
         self.host_map = host_map
 
         self.replacements_table: Dict[str,str] = {}
@@ -43,27 +43,49 @@ class HostnameReplacer:
 
         self.compute_replacements()
 
-    def validate_host_map(self, host_map: Dict[str,str]) -> None:
+    def _validate_hostname(self, hostname: str) -> None:
+        """Validates that the supplied hostname is a valid domain or IP
+        address. This includes qualified and unqualified hostnames,
+        internationalized domain names (IDNs), and IPv4/IPv6 addresses.
+
+        Args:
+            hostname: The name or IP address to validate.
+
+        Raises:
+            ValueError if the supplied hostname is invalid.
+
+        Returns:
+            None
         """
-        Validates the provided host map entries.
+
+        if not isinstance(hostname, str):
+            raise ValueError(f"{hostname} is not a str")
+
+        # Check if the name is an IDN; this also covers IPv4 addresses
+        try:
+            idna.decode(hostname)
+            return
+        except idna.core.IDNAError:
+            pass
+        try:
+            ipaddress.IPv6Address(hostname)
+            return
+        except ipaddress.AddressValueError:
+            raise ValueError(f"{hostname} is not a valid hostname or IP address") from None
+
+    def _validate_host_map(self, host_map: Dict[str,str]) -> None:
+        """
+        Validates the entries in the provided host map.
 
         Args:
             host_map: The host mapping dictionary to validate.
 
         Raises:
-            ValueError: If any entry is neither a valid IDN nor IP address.
+            ValueError: If any entry is neither a valid domain nor IP address.
         """
 
         for hostname in set(host_map.keys()).union(host_map.values()):
-            try:
-                if not isinstance(hostname, str):
-                    raise ValueError(f"{hostname} is not a str")
-                idna.decode(hostname)
-            except idna.core.IDNAError:
-                try:
-                    ipaddress.IPv6Address(hostname)
-                except ipaddress.AddressValueError as e:
-                    raise ValueError(f"{hostname} is not a valid domain name or IP address") from e
+            self._validate_hostname(hostname)
 
     def compute_replacements(self, host_map: Union[Dict[str,str], None] = None) -> None:
         """
@@ -74,11 +96,11 @@ class HostnameReplacer:
             host_map: An optional host mapping dictionary to replace the existing mapping.
 
         Raises:
-            idna.core.IDNAError: If any of the hostnames in the host map are invalid according to IDNA encoding.
+            ValueError: If any entry is neither a valid domain nor IP address.
         """
 
         if host_map:
-            self.validate_host_map(host_map)
+            self._validate_host_map(host_map)
             self.host_map = host_map
             self.replacements_table = {}
 
@@ -89,6 +111,11 @@ class HostnameReplacer:
 
                 # Avoid introducing encoded characters in a replacement if the original doesn't have any
                 if encoded_original != original or encoding_name == "encoding_plain":
+                    # Debugging
+                    #if encoded_original in self.replacements_table:
+                    #    if self.replacements_table.get(encoded_original, None) != encoded_replacement:
+                    #        print(f"\treplacing {encoding_name} of {encoded_original} with {encoded_replacement}")
+                    #print(f"setting {encoding_name} of {encoded_original} to {encoded_replacement}")
                     self.replacements_table[encoded_original] = encoded_replacement
 
         search_str = "(" + "|".join([regex.escape(search) for search in self.replacements_table]) + ")"
@@ -128,10 +155,12 @@ class HostnameReplacer:
         """
 
         original_str = m.group()
-        replacement_str = self.replacements_table.get(original_str.lower(), original_str)
 
+        # It shouldn't be possible to fail to find original_str in the replacements table, but if this happens,
+        # fall back to original_str as if the host is mapped to itself
+        replacement_str = self.replacements_table.get(original_str.lower(), original_str)
         if replacement_str == original_str:
-            logging.warning("%s not found in replacements table (coding error) or the table maps it to itself", original_str)
+            return replacement_str
 
         if original_str.isupper():
             replacement_str = replacement_str.upper()
@@ -153,11 +182,13 @@ class HostnameReplacer:
             The replacement bytes.
         """
 
+        # It shouldn't be possible to fail to find original_str in the replacements table, but if this happens,
+        # fall back to original_str as if the host is mapped to itself
         original_str = m.group().decode("utf-8", errors="replace")
         replacement_str = self.replacements_table.get(original_str.lower(), original_str)
 
         if replacement_str == original_str:
-            logging.warning("%s not found in replacements table (coding error) or the table maps it to itself", original_str)
+            return replacement_str.encode("utf-8")
 
         if original_str.isupper():
             replacement_str = replacement_str.upper()
@@ -187,7 +218,7 @@ def encoding_url(s: str) -> str:
 
 def encoding_html_hex_not_alphanum(s: str) -> str:
     """Return string with all non-alphanumeric characters including hyphens HTML entity encoded using hex notation."""
-    return "".join(f"&#x{ord(c):02x};" if not c.isalnum() else c for c in s)
+    return "".join(c if c.isalnum() else f"&#x{ord(c):02x};" for c in s)
 
 def encoding_html_numeric_not_alphanum(s: str) -> str:
     """Return string with all non-alphanumeric characters including hyphens HTML entity encoded using decimal notation."""
@@ -209,13 +240,19 @@ def encoding_url_all(s: str) -> str:
     """Return string with all characters URL encoded."""
     return "".join(f"%{ord(c):02x}" for c in s)
 
-encoding_functions = {}
-
-for name in dir():
-    if name.startswith("encoding_"):
-        function = globals().get(name, None)
-        if callable(function):
-            encoding_functions[name] = function
+# Note that the order of encoding functions matters.
+encoding_functions = {
+    "encoding_html_hex": encoding_html_hex,
+    "encoding_html_hex_all": encoding_html_hex_all,
+    "encoding_html_hex_not_alphanum": encoding_html_hex_not_alphanum,
+    "encoding_html_numeric": encoding_html_numeric,
+    "encoding_html_numeric_all": encoding_html_numeric_all,
+    "encoding_html_numeric_not_alphanum": encoding_html_numeric_not_alphanum,
+    "encoding_plain": encoding_plain,
+    "encoding_url": encoding_url,
+    "encoding_url_all": encoding_url_all,
+    "encoding_url_not_alphanum": encoding_url_not_alphanum
+}
 
 # Regular expression patterns
 ALPHANUMERIC_HEX_CODES = "(?:4[1-9a-f]|5[0-9a]|6[1-9a-f]|7[0-9a]|3[0-9])"
