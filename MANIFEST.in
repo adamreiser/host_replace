@@ -1,4 +1,0 @@
-include *.json
-include *.py
-include *.txt
-include .pylintrc
