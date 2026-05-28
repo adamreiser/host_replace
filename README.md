@@ -12,6 +12,8 @@ A Python package for replacing hostnames, domains, and IP addresses in text unde
 
 ## Installation
 
+Requires Python 3.11 or newer.
+
 Install with pip: `pip install host-replace`
 
 Install from source:
