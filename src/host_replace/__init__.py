@@ -20,5 +20,5 @@ API:
     # Output: Visit us at https://www.example.com
     print(output_text)
 """
-from .host_replace import HostnameReplacer, encoding_functions, HYPHEN, DOT
+from .host_replace import HostnameReplacer
 __all__ = ["HostnameReplacer"]

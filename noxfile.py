@@ -29,11 +29,20 @@ def trailing_whitespace(session):
     files = result.strip().splitlines()
 
     result = session.run(
-        "grep", "-nE", r"\s$", *files, success_codes=[1], silent=True, external=True
+        "grep", "-nE", r"\s$", *files, success_codes=[0, 1], silent=True, external=True
     )
 
     if result:
         session.error("Trailing whitespace found:\n" + result)
+
+@nox.session
+def hard_tabs(session):
+    """Check for hard tabs in tracked files."""
+    files = session.run("git", "ls-files", silent=True,
+                        external=True).strip().splitlines()
+
+    session.run("grep", "-n", "\t", *files, success_codes=[1], silent=True,
+                external=True)
 
 @nox.session
 def mypy(session):

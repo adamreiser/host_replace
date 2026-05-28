@@ -2,3 +2,9 @@ build/
 dist/
 *.egg-info/
 __pycache__/
+.venv/
+.nox/
+.pytest_cache/
+.mypy_cache/
+playground.py
+nox_log.txt
