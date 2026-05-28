@@ -12,12 +12,14 @@ A Python package for replacing hostnames, domains, and IP addresses in text unde
 
 ## Installation
 
+Requires Python 3.11 or newer.
+
 Install with pip: `pip install host-replace`
 
 Install from source:
 ```
 git clone https://github.com/adamreiser/host_replace
-cd host-replace
+cd host_replace
 pip install .
 ```
 
@@ -26,6 +28,17 @@ pip install .
 ### Command-line interface
 
 Transform the following text file using the provided mapping: `host-replace -m mappings.json sample.txt --verbose`
+
+Engine selection is configurable with `--engine regex|automaton|auto` (default `regex`).
+Use `--expected-runs` to hint reuse count when `--engine auto` is selected.
+
+Guidance:
+- Use `regex` for one-shot or small inputs (lowest startup overhead).
+- Use `automaton` for larger workloads or when reusing the same replacer repeatedly.
+- Use `auto` if you want a heuristic choice based on host-map size, input size, and expected reuse.
+- Current `auto` heuristic is benchmark-informed and intentionally conservative:
+  - one-shot (`expected_runs=1`) chooses `regex`
+  - `automaton` is considered for larger maps and inputs when reuse is >=2
 
 ```sample.txt
 1. https://web.example.com/path/to/resource?query=param
@@ -76,7 +89,7 @@ host_map = {
     "boards.example.com": "forums.example.net"
 }
 
-replacer = host_replace.HostnameReplacer(host_map)
+replacer = host_replace.HostnameReplacer(host_map, engine="auto", expected_runs=2)
 
 # Input text (str or bytes)
 input_text = "Visit us at https://web.example.com or leave a comment at https://boards.example.com."
@@ -90,7 +103,7 @@ print(output_text)
 
 ## Limitations
 
-- Does not detect encoded uppercase characters. This is generally rare and occurs when an entire hostname is URL or entity encoded with uppercase letters.
+- Full pre-encoding case preservation is not supported. Matching is case-insensitive for encoded and unencoded hosts, but replacements preserve case based on the matched representation after encoding, which can lead to cosmetic casing differences in some encoded forms.
 
 - Full case preservation of individual characters is not supported due to its inherent ambiguity. For example, when mapping `WWW.example.com` to `example.org`, it's unclear which if any letters should be capitalized.
 

@@ -6,11 +6,15 @@ import logging
 import string
 import urllib.parse
 import html
+import subprocess
+import sys
+import json
 import pytest
 import host_replace
 
+logger = logging.getLogger(__name__)
 
-class TestHostnameReplacement(unittest.TestCase):
+class TestHostnameReplacement(unittest.TestCase):  # pylint: disable=too-many-public-methods
     """Unit test class for host_replace.HostnameReplacer"""
 
     # These sequences should act as delimiters, allowing the host to be replaced
@@ -36,7 +40,7 @@ class TestHostnameReplacement(unittest.TestCase):
                 "-.",
                 "..",
                 "a..",
-                "a-."
+                "a-.",
                 "\\",
                 #"-a-", # These should act as delimiters but currently do not
                 #".-",
@@ -120,7 +124,7 @@ class TestHostnameReplacement(unittest.TestCase):
         self.skip_count = 0
 
     def tearDown(self):
-        logging.info("Skipped %s comparisons", self.skip_count)
+        logger.info("Skipped %s comparisons", self.skip_count)
 
     def skip(self, original, replacement, encoding_function):
         """
@@ -132,18 +136,25 @@ class TestHostnameReplacement(unittest.TestCase):
         Returns:
             False for all unencoded comparisons
             True if the original contains no characters that would be encoded
-            True if the encoded replacement contains an unencoded hyphen
+            True if the replacement contains a hyphen
         """
 
         if encoding_function.__name__ == "encoding_plain":
             return False
 
-        if encoding_function(original) == original or "-" in encoding_function(replacement):
+        if encoding_function(original) == original or "-" in replacement:
             self.skip_count += 1
-            logging.debug("Skipping comparison of %s to %s under %s", original, replacement, encoding_function.__name__)
+            logger.debug("Skipping comparison of %s to %s under %s", original, replacement, encoding_function.__name__)
             return True
 
         return False
+
+    @staticmethod
+    def decode_text(value):
+        """Decode URL and HTML entity encodings for semantic comparisons."""
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="replace")
+        return urllib.parse.unquote(html.unescape(value))
 
     def test_encoding_functions(self):
         """Test that the encoding functions are correctly labeled and perform the expected encodings."""
@@ -161,10 +172,18 @@ class TestHostnameReplacement(unittest.TestCase):
             "encoding_url_all": "%31%2d%61%3f%2e%2f%3b%26%25"
         }
 
-        for encoding_name, encoding_function in host_replace.encoding_functions.items():
+        for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
             function_output = encoding_function(input_text)
             with self.subTest(encoding_name=encoding_name):
                 assert expected_outputs[encoding_name] == function_output, f"Encoding error: {input_text} incorrectly results in {function_output} instead of {expected_outputs[encoding_name]} under {encoding_name} encoding."
+
+    def test_url_encoding_uses_utf8_bytes_for_non_ascii(self):
+        """URL encoders should percent-encode UTF-8 bytes, not code points."""
+        encoding_functions = host_replace.host_replace.encoding_functions
+
+        assert encoding_functions["encoding_url_all"]("é🙂") == "%c3%a9%f0%9f%99%82"
+        assert encoding_functions["encoding_url_not_alphanum"]("a🙂-?") == "a%f0%9f%99%82%2d%3f"
+        assert encoding_functions["encoding_url"]("a🙂-?") == "a%f0%9f%99%82-%3f"
 
     def test_replacements_table(self):
         """Test that the replacements table is correctly created for an
@@ -208,11 +227,60 @@ class TestHostnameReplacement(unittest.TestCase):
             with self.subTest(key=k, value=v):
                 assert expected_replacements_table.get(k) == v
 
+    def test_no_extra_hyphen_encoding_for_colliding_keys(self):
+        """If multiple encoders produce the same search key, avoid introducing
+        extra encoded hyphens in the replacement."""
+
+        host_map = {"us.example.com": "us-east-1.example.net"}
+        tmp_replacer = host_replace.HostnameReplacer(host_map)
+        encoding_functions = host_replace.host_replace.encoding_functions
+
+        cases = [
+            ("encoding_html_hex", "us-east-1&#x2e;example&#x2e;net"),
+            ("encoding_html_numeric", "us-east-1&#46;example&#46;net"),
+            ("encoding_url", "us-east-1%2eexample%2enet"),
+        ]
+
+        for encoding_name, expected_output in cases:
+            input_text = encoding_functions[encoding_name]("us.example.com")
+            actual_output = tmp_replacer.apply_replacements(input_text)
+            with self.subTest(encoding_name=encoding_name):
+                assert actual_output == expected_output
+
+    def test_no_new_encoding_when_original_is_unchanged(self):
+        """If an encoding does not change the original key, keep replacement
+        plain instead of introducing new encoded characters."""
+
+        host_map = {
+            "files": "cloud.example.com",
+            "intsrv": "internal-file-server",
+            "inthost1": "external-host-1.example.com",
+        }
+        tmp_replacer = host_replace.HostnameReplacer(host_map)
+        encoding_functions = host_replace.host_replace.encoding_functions
+
+        for original, replacement in host_map.items():
+            for encoding_name in (
+                "encoding_html_hex",
+                "encoding_html_hex_not_alphanum",
+                "encoding_html_numeric",
+                "encoding_html_numeric_not_alphanum",
+                "encoding_url",
+                "encoding_url_not_alphanum",
+            ):
+                encoding_function = encoding_functions[encoding_name]
+                encoded_original = encoding_function(original)
+                if encoded_original != original:
+                    continue
+                actual_output = tmp_replacer.apply_replacements(encoded_original)
+                with self.subTest(original=original, encoding_name=encoding_name):
+                    assert actual_output == replacement
+
     def test_delimiters(self):
         """Test every replacement in the table for all encodings with
         a variety of delimiters."""
         for original, replacement in self.host_map.items():
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
 
                 if self.skip(original, replacement, encoding_function):
                     continue
@@ -241,6 +309,42 @@ class TestHostnameReplacement(unittest.TestCase):
                         with self.subTest(original=original, prefix=prefix, suffix=suffix, encoding_name=encoding_name):
                             assert actual_output == expected_output, f"{input_text} incorrectly results in {actual_output} instead of {expected_output} under {encoding_name} encoding."
 
+    def test_skipped_cases_are_semantically_equivalent(self):
+        """Ensure skipped style-ambiguous cases still produce correct decoded values."""
+
+        # Keep this focused: representative delimiters catch boundary behavior
+        # without exploding runtime like the full delimiter matrix.
+        prefixes = ("", "https://", "href=\"", "a..")
+        suffixes = ("", "/path", "?next=1")
+
+        for original, replacement in self.host_map.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
+                if encoding_name == "encoding_plain":
+                    continue
+                if not self.skip(original, replacement, encoding_function):
+                    continue
+
+                for prefix in prefixes:
+                    for suffix in suffixes:
+                        input_text = encoding_function(prefix + original + suffix)
+                        expected_output = encoding_function(prefix + replacement + suffix)
+                        actual_output = self.replacer.apply_replacements(input_text)
+
+                        decoded_actual = self.decode_text(actual_output)
+                        decoded_expected = self.decode_text(expected_output)
+
+                        with self.subTest(
+                            original=original,
+                            replacement=replacement,
+                            encoding_name=encoding_name,
+                            prefix=prefix,
+                            suffix=suffix,
+                        ):
+                            assert decoded_actual == decoded_expected, (
+                                f"{input_text} decodes to {decoded_actual} instead of "
+                                f"{decoded_expected} under {encoding_name} encoding."
+                            )
+
     def test_nondelimiters(self):
         """Test every entry in the table for all encodings, with
         a variety of non-delimiting strings. No replacements should be made."""
@@ -248,7 +352,7 @@ class TestHostnameReplacement(unittest.TestCase):
         alphanumerics = tuple(string.ascii_letters + string.digits)
 
         for original in self.host_map:
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
 
                 # The negative prefixes and suffixes must be tested individually so that detection of
                 # a prefix or suffix that incorrectly allows replacement is not "masked".
@@ -287,7 +391,7 @@ class TestHostnameReplacement(unittest.TestCase):
         """Test that invalid UTF-8 bytes do not raise exceptions and that they act as delimiters."""
 
         for original, replacement in self.host_map.items():
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
                 if self.skip(original, replacement, encoding_function):
                     continue
 
@@ -304,7 +408,7 @@ class TestHostnameReplacement(unittest.TestCase):
         """Test that invalid UTF-8 strings do not raise exceptions and that they act as delimiters."""
 
         for original, replacement in self.host_map.items():
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
                 if self.skip(original, replacement, encoding_function):
                     continue
 
@@ -319,7 +423,7 @@ class TestHostnameReplacement(unittest.TestCase):
     def test_no_undefined_subdomain_replacement(self):
         """Test whether an undefined subdomain is replaced."""
         for original in self.host_map:
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
                 input_text = encoding_function(f"undefined.{original}")
                 if input_text in self.host_map:
                     self.fail(f"Invalid test conditions: {input_text} should not be in the host map.")
@@ -331,7 +435,7 @@ class TestHostnameReplacement(unittest.TestCase):
 
     def test_no_bare_domain_replacement(self):
         """Test whether a bare second level domain is replaced."""
-        for encoding_name, encoding_function in host_replace.encoding_functions.items():
+        for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
             input_text = encoding_function("example.com")
             if input_text in self.host_map:
                 self.fail(f"Invalid test conditions: {input_text} should not be in the host map.")
@@ -343,7 +447,7 @@ class TestHostnameReplacement(unittest.TestCase):
 
     def test_url_with_encoded_redirect(self):
         """Test whether an unencoded hostname and an encoded hostname are both replaced correctly."""
-        for encoding_name, encoding_function in host_replace.encoding_functions.items():
+        for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
             for original_redirect, replacement_redirect in self.host_map.items():
                 if self.skip(original_redirect, replacement_redirect, encoding_function):
                     continue
@@ -378,7 +482,7 @@ class TestHostnameReplacement(unittest.TestCase):
         """
 
         for original, replacement in self.host_map.items():
-            for encoding_name, encoding_function in host_replace.encoding_functions.items():
+            for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
                 if self.skip(original, replacement, encoding_function):
                     continue
 
@@ -442,7 +546,7 @@ class TestHostnameReplacement(unittest.TestCase):
         if self.host_map.get("web.example.com") != "www.example.com":
             self.fail("Invalid test conditions: web.example.com must map to www.example.com.")
 
-        for encoding_name, encoding_function in host_replace.encoding_functions.items():
+        for encoding_name, encoding_function in host_replace.host_replace.encoding_functions.items():
             input_text = encoding_function("WEB.EXAMPLE.COM")
             expected_output = encoding_function("WWW.EXAMPLE.COM")
             actual_output = self.replacer.apply_replacements(input_text)
@@ -453,7 +557,7 @@ class TestHostnameReplacement(unittest.TestCase):
             if decoded_actual_output != decoded_expected_output:
                 if decoded_actual_output.lower() == decoded_expected_output.lower():
                     # Cosmetic failure
-                    logging.warning("Case is not preserved under %s encoding: %s results in %s instead of %s", encoding_name, input_text, actual_output, expected_output)
+                    logger.warning("Case is not preserved under %s encoding: %s results in %s instead of %s", encoding_name, input_text, actual_output, expected_output)
                 else:
                     # Functional failure
                     with self.subTest(input_text=input_text, encoding_name=encoding_name):
@@ -481,5 +585,153 @@ class TestHostnameReplacement(unittest.TestCase):
             with pytest.raises(ValueError):
                 host_replace.HostnameReplacer(host_map)
 
+    def test_invalid_host_map_types(self):
+        """Test that invalid host map container/value types raise ValueError."""
+
+        invalid_host_maps = [
+            [],
+            (),
+            "not-a-dict",
+            1,
+            {"test.example.com": ["example.org"]},
+            {"test.example.com": {"host": "example.org"}},
+        ]
+
+        for host_map in invalid_host_maps:
+            with pytest.raises(ValueError):
+                host_replace.HostnameReplacer(host_map)
+
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_cli_output_write_error(tmp_path):
+    """Test that CLI exits cleanly when output cannot be written."""
+
+    mapping_path = tmp_path / "mapping.json"
+    input_path = tmp_path / "input.txt"
+
+    mapping_path.write_text(
+        json.dumps({"web.example.com": "www.example.com"}),
+        encoding="utf-8",
+    )
+    input_path.write_text("web.example.com", encoding="utf-8")
+
+    # Use a directory as output path to force an OSError.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "host_replace.cli",
+            "-m",
+            str(mapping_path),
+            "-o",
+            str(tmp_path),
+            str(input_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "Cannot write output" in result.stderr
+
+
+def test_cli_auto_engine_runs(tmp_path):
+    """Test CLI execution with auto engine selection."""
+
+    mapping_path = tmp_path / "mapping.json"
+    input_path = tmp_path / "input.txt"
+
+    mapping_path.write_text(
+        json.dumps({"web.example.com": "www.example.com"}),
+        encoding="utf-8",
+    )
+    input_path.write_text("https://web.example.com", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "host_replace.cli",
+            "-m",
+            str(mapping_path),
+            "-v",
+            "--engine",
+            "auto",
+            "--expected-runs",
+            "2",
+            str(input_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "https://www.example.com" in result.stdout
+    assert "Auto-selected engine=" in result.stderr
+
+
+def test_cli_empty_mapping_automaton_is_noop(tmp_path):
+    """Test CLI accepts empty mapping under automaton engine as a no-op."""
+
+    mapping_path = tmp_path / "mapping.json"
+    input_path = tmp_path / "input.txt"
+
+    mapping_path.write_text("{}", encoding="utf-8")
+    input_path.write_text("https://web.example.com", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "host_replace.cli",
+            "-m",
+            str(mapping_path),
+            "--engine",
+            "automaton",
+            str(input_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == "https://web.example.com"
+
+
+def test_cli_invalid_expected_runs_is_reported_as_argument_error(tmp_path):
+    """Test CLI rejects non-positive --expected-runs values as argument errors."""
+
+    mapping_path = tmp_path / "mapping.json"
+    input_path = tmp_path / "input.txt"
+
+    mapping_path.write_text(
+        json.dumps({"web.example.com": "www.example.com"}),
+        encoding="utf-8",
+    )
+    input_path.write_text("https://web.example.com", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "host_replace.cli",
+            "-m",
+            str(mapping_path),
+            "--engine",
+            "auto",
+            "--expected-runs",
+            "0",
+            str(input_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "must be a positive integer" in result.stderr

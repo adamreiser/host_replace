@@ -5,6 +5,18 @@ import logging
 import json
 from .host_replace import HostnameReplacer
 
+logger = logging.getLogger(__name__)
+
+def positive_int(value: str) -> int:
+    """argparse type for strictly positive integers."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
 def main() -> None:
     """
     Parses command-line arguments and performs hostname replacements on stdin
@@ -32,6 +44,20 @@ def main() -> None:
         help="display the replacements made"
     )
 
+    parser.add_argument(
+        "--engine",
+        choices=("regex", "automaton", "auto"),
+        default="regex",
+        help="replacement engine backend (default: regex)"
+    )
+
+    parser.add_argument(
+        "--expected-runs",
+        type=positive_int,
+        default=1,
+        help="expected reuse count for --engine auto heuristic (default: 1)"
+    )
+
     args = parser.parse_args()
 
     logging.basicConfig(level=
@@ -46,16 +72,20 @@ def main() -> None:
                 raise ValueError("Not a dictionary")
 
     except IOError as e:
-        logging.error("Cannot open host map file: %s", e)
+        logger.error("Cannot open host map file: %s", e)
         sys.exit(1)
     except (json.decoder.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
-        logging.error("%s is not a valid UTF-8 JSON dict: %s", args.mapping, e)
+        logger.error("%s is not a valid UTF-8 JSON dict: %s", args.mapping, e)
         sys.exit(1)
 
     try:
-        replacer = HostnameReplacer(host_map)
+        replacer = HostnameReplacer(
+            host_map,
+            engine=args.engine,
+            expected_runs=args.expected_runs,
+        )
     except ValueError as e:
-        logging.error("%s is not a valid host map: %s", args.mapping, e)
+        logger.error("%s is not a valid host map: %s", args.mapping, e)
         sys.exit(1)
 
     input_text = args.input.read()
@@ -64,18 +94,22 @@ def main() -> None:
     # Since input_text is bytes, output_text is bytes. We check explicitly for
     # type safety, however
     if isinstance(output_text, bytes):
-        if args.output:
-            with open(args.output, mode="wb") as outfile:
-                outfile.write(output_text)
-        else:
-            if sys.stdout.isatty():
-                try:
-                    sys.stdout.write(output_text.decode("utf-8"))
-                except UnicodeDecodeError:
-                    logging.error("Output contains binary data that may corrupt your terminal")
-                    sys.exit(1)
+        try:
+            if args.output:
+                with open(args.output, mode="wb") as outfile:
+                    outfile.write(output_text)
             else:
-                sys.stdout.buffer.write(output_text)
+                if sys.stdout.isatty():
+                    try:
+                        sys.stdout.write(output_text.decode("utf-8"))
+                    except UnicodeDecodeError:
+                        logger.error("Output contains binary data that may corrupt your terminal")
+                        sys.exit(1)
+                else:
+                    sys.stdout.buffer.write(output_text)
+        except OSError as e:
+            logger.error("Cannot write output: %s", e)
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
